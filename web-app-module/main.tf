@@ -50,7 +50,7 @@ resource "aws_subnet" "public_subnet" {
   vpc_id            = aws_vpc.webapp_vpc.id
   availability_zone = data.aws_availability_zones.available.names[count.index]
   tags = {
-    Name = "public_subnet-${count.index + 1}"
+    Name = "public_subnet-${aws_vpc.webapp_vpc.id}-${count.index + 1}"
   }
 }
 
@@ -60,7 +60,7 @@ resource "aws_subnet" "private_subnet" {
   vpc_id            = aws_vpc.webapp_vpc.id
   availability_zone = data.aws_availability_zones.available.names[count.index]
   tags = {
-    Name = "private_subnet-${count.index + 1}"
+    Name = "private_subnet-${aws_vpc.webapp_vpc.id}-${count.index + 1}"
   }
 }
 
