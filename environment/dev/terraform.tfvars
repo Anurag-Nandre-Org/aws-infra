@@ -4,5 +4,5 @@ aws_profile      = "dev"
 aws_region       = "us-east-1"
 aws_subnet_count = 3
 my_ip            = "155.33.132.68/32"
-my_ami           = "ami-05106dcc39f810795"
+my_ami           = "ami-03c1e9e8b2b29fc4d"
 
