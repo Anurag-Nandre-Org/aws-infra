@@ -117,12 +117,32 @@ resource "aws_security_group" "app_sg" {
     cidr_blocks = ["0.0.0.0/0"] # Allow traffic from all IP addresses
   }
 
-  # Define outbound rules
-  egress {
-    from_port   = 0 # Allow all outbound traffic
+
+  # egress {
+  #   # description = "Allow Postgres traffic fromy the application security group"
+  #   from_port   = 443
+  #   to_port     = 443
+  #   protocol    = "tcp"
+  #   cidr_blocks = ["0.0.0.0/0"]
+  # }
+  # egress {
+  #   # description = "Allow Postgres traffic fromy the application security group"
+  #   from_port   = 0
+  #   to_port     = 0
+  #   protocol    = "tcp"
+  #   cidr_blocks = ["0.0.0.0/0"]
+  # }
+   egress {
+    from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"] # Allow traffic to all IP addresses
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  egress {
+    from_port   = 3306
+    to_port     = 3306
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   tags = {
@@ -182,20 +202,50 @@ resource "aws_security_group" "db_sg" {
 #   source_security_group_id = aws_security_group.db_sg.id
 # }
 resource "aws_instance" "webapp_instance" {
-  ami             = var.my_ami                     # Set the ID of the Amazon Machine Image to use
-  instance_type   = "t2.micro"                     # Set the instance type
-  key_name        = "ec2"                          # Set the key pair to use for SSH access
-  security_groups = [aws_security_group.ec2-sg.id] # Set the security group to attach to the instance
-  subnet_id       = local.public_subnet_ids[0]     # Set the ID of the subnet to launch the instance in
+  ami                    = var.my_ami                     # Set the ID of the Amazon Machine Image to use
+  instance_type          = "t2.micro"                     # Set the instance type
+  key_name               = "ec2"                          # Set the key pair to use for SSH access
+  vpc_security_group_ids = [aws_security_group.app_sg.id] # Set the security group to attach to the instance
+  subnet_id              = local.public_subnet_ids[0]    # Set the ID of the subnet to launch the instance in
   # Enable protection against accidental termination
   disable_api_termination = false
   # Set the root volume size and type
   root_block_device {
-    volume_size = 20    # Replace with your preferred root volume size (in GB)
-    volume_type = "gp2" # Replace with your preferred root volume type (e.g. "gp2", "io1", etc.)
+    volume_size           = 20    # Replace with your preferred root volume size (in GB)
+    volume_type           = "gp2" # Replace with your preferred root volume type (e.g. "gp2", "io1", etc.)
+    delete_on_termination = true
   }
-  # Allocate a public IPv4 address
-  associate_public_ip_address = true
+  depends_on           = [aws_db_instance.rds_instance]
+  iam_instance_profile = aws_iam_instance_profile.iam_profile.name
+  user_data            = <<EOF
+#!/bin/bash
+cd /home/ec2-user || return
+touch application.properties
+sudo chown ec2-user:ec2-user application.properties
+sudo chmod 775 application.properties
+echo "aws.region=${var.aws_region}" >> application.properties
+echo "aws.s3.bucketName=${aws_s3_bucket.s3b.bucket}" >> application.properties
+echo "server.port=5080" >> application.properties
+echo "spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver" >> application.properties
+echo "spring.datasource.url=jdbc:mysql://${aws_db_instance.rds_instance.endpoint}/${aws_db_instance.rds_instance.db_name}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" >> application.properties
+echo "spring.datasource.username=${aws_db_instance.rds_instance.username}" >> application.properties
+echo "spring.datasource.password=${aws_db_instance.rds_instance.password}" >> application.properties
+echo "spring.jpa.properties.hibernate.show_sql=true" >> application.properties
+echo "spring.jpa.properties.hibernate.use_sql_comments=true" >> application.properties
+echo "spring.jpa.properties.hibernate.format_sql=true" >> application.properties
+echo "logging.level.org.hibernate.type=trace" >> application.properties
+echo "#spring.jpa.properties.hibernate.dialect = org.hibernate.dialect.MySQL5InnoDBDialect" >> application.properties
+echo "spring.jpa.hibernate.ddl-auto=update" >> application.properties
+sudo chmod 770 /home/ec2-user/webapp-0.0.1-SNAPSHOT.jar
+sudo cp /tmp/webservice.service /etc/systemd/system
+sudo chmod 770 /etc/systemd/system/webservice.service
+sudo systemctl start webservice.service
+sudo systemctl enable webservice.service
+sudo systemctl daemon-reload
+sudo systemctl start webservice.service
+sudo systemctl enable webservice.service
+  EOF
+
   tags = {
     Name = "webapp-instance-${timestamp()}" # Set the name tag for the instance
   }
@@ -255,7 +305,7 @@ resource "aws_iam_policy" "policy" {
     "Version" : "2012-10-17"
     "Statement" : [
       {
-        "Action" : ["s3:DeleteObject", "s3:PutObject", "s3:GetObject", "s3:ListAllMyBuckets"]
+        "Action" : ["s3:DeleteObject", "s3:PutObject", "s3:GetObject", "s3:ListAllMyBuckets","s3:ListBucket"]
         "Effect" : "Allow"
         "Resource" : ["arn:aws:s3:::${aws_s3_bucket.s3b.bucket}",
         "arn:aws:s3:::${aws_s3_bucket.s3b.bucket}/*"]
