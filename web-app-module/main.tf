@@ -110,40 +110,32 @@ resource "aws_security_group" "app_sg" {
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"] # Allow traffic from all IP addresses
   }
+  # ingress {
+  #   from_port   = 5080 # Allow HTTP traffic
+  #   to_port     = 5080
+  #   protocol    = "tcp"
+  #   cidr_blocks = ["0.0.0.0/0"] # Allow traffic from all IP addresses
+  # }
   ingress {
-    from_port   = 5080 # Allow HTTP traffic
-    to_port     = 5080
+    from_port   = 8081 # Allow HTTP traffic
+    to_port     = 8081
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"] # Allow traffic from all IP addresses
   }
 
 
-  # egress {
-  #   # description = "Allow Postgres traffic fromy the application security group"
-  #   from_port   = 443
-  #   to_port     = 443
-  #   protocol    = "tcp"
-  #   cidr_blocks = ["0.0.0.0/0"]
-  # }
-  # egress {
-  #   # description = "Allow Postgres traffic fromy the application security group"
-  #   from_port   = 0
-  #   to_port     = 0
-  #   protocol    = "tcp"
-  #   cidr_blocks = ["0.0.0.0/0"]
-  # }
-   egress {
+  egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-  egress {
-    from_port   = 3306
-    to_port     = 3306
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
+  # egress {
+  #   from_port   = 3306
+  #   to_port     = 3306
+  #   protocol    = "tcp"
+  #   cidr_blocks = ["0.0.0.0/0"]
+  # }
 
   tags = {
     Name = "ec2-sg-${timestamp()}" # Set the name tag for the security group
@@ -160,53 +152,17 @@ resource "aws_security_group" "db_sg" {
     to_port         = 3306
     security_groups = [aws_security_group.app_sg.id]
   }
-
-  # egress {
-  #   from_port   = 0
-  #   to_port     = 0
-  #   protocol    = "-1"
-  #   cidr_blocks = ["0.0.0.0/0"]
-  # }
   tags = {
     "Name" = "database-sg-${timestamp()}"
   }
 }
 
-# # Add an inbound rule to the RDS security group to allow traffic from the EC2 security group
-# resource "aws_security_group_rule" "rds_ingress" {
-#   type                     = "ingress"
-#   from_port                = 3306
-#   to_port                  = 3306
-#   protocol                 = "tcp"
-#   security_group_id        = aws_security_group.db_sg.id
-#   source_security_group_id = aws_security_group.app_sg.id
-# }
-
-# # Add an outbound rule to the RDS security group to allow traffic from the EC2 security group
-# resource "aws_security_group_rule" "rds_egress" {
-#   type                     = "egress"
-#   from_port                = 3306
-#   to_port                  = 3306
-#   protocol                 = "tcp"
-#   security_group_id        = aws_security_group.db_sg.id
-#   source_security_group_id = aws_security_group.app_sg.id
-# }
-
-# Add an inbound rule to the EC2 security group to allow traffic to the RDS security group
-# resource "aws_security_group_rule" "ec2_ingress" {
-#   type                     = "ingress"
-#   from_port                = 3306
-#   to_port                  = 3306
-#   protocol                 = "tcp"
-#   security_group_id        = aws_security_group.app_sg.id
-#   source_security_group_id = aws_security_group.db_sg.id
-# }
 resource "aws_instance" "webapp_instance" {
   ami                    = var.my_ami                     # Set the ID of the Amazon Machine Image to use
   instance_type          = "t2.micro"                     # Set the instance type
   key_name               = "ec2"                          # Set the key pair to use for SSH access
   vpc_security_group_ids = [aws_security_group.app_sg.id] # Set the security group to attach to the instance
-  subnet_id              = local.public_subnet_ids[0]    # Set the ID of the subnet to launch the instance in
+  subnet_id              = local.public_subnet_ids[0]     # Set the ID of the subnet to launch the instance in
   # Enable protection against accidental termination
   disable_api_termination = false
   # Set the root volume size and type
@@ -225,15 +181,11 @@ sudo chown ec2-user:ec2-user application.properties
 sudo chmod 775 application.properties
 echo "aws.region=${var.aws_region}" >> application.properties
 echo "aws.s3.bucketName=${aws_s3_bucket.s3b.bucket}" >> application.properties
-echo "server.port=5080" >> application.properties
+echo "server.port=8081" >> application.properties
 echo "spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver" >> application.properties
 echo "spring.datasource.url=jdbc:mysql://${aws_db_instance.rds_instance.endpoint}/${aws_db_instance.rds_instance.db_name}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC" >> application.properties
 echo "spring.datasource.username=${aws_db_instance.rds_instance.username}" >> application.properties
 echo "spring.datasource.password=${aws_db_instance.rds_instance.password}" >> application.properties
-echo "spring.jpa.properties.hibernate.show_sql=true" >> application.properties
-echo "spring.jpa.properties.hibernate.use_sql_comments=true" >> application.properties
-echo "spring.jpa.properties.hibernate.format_sql=true" >> application.properties
-echo "logging.level.org.hibernate.type=trace" >> application.properties
 echo "#spring.jpa.properties.hibernate.dialect = org.hibernate.dialect.MySQL5InnoDBDialect" >> application.properties
 echo "spring.jpa.hibernate.ddl-auto=update" >> application.properties
 sudo chmod 770 /home/ec2-user/webapp-0.0.1-SNAPSHOT.jar
@@ -253,8 +205,7 @@ sudo systemctl enable webservice.service
 
 resource "random_pet" "rg" {
   keepers = {
-    # Generate a new pet name each time we switch to a new profile
-    random_name= "webapp"
+    random_name = "webapp"
   }
 }
 // Create s3 bucket
@@ -305,7 +256,7 @@ resource "aws_iam_policy" "policy" {
     "Version" : "2012-10-17"
     "Statement" : [
       {
-        "Action" : ["s3:DeleteObject", "s3:PutObject", "s3:GetObject", "s3:ListAllMyBuckets","s3:ListBucket"]
+        "Action" : ["s3:DeleteObject", "s3:PutObject", "s3:GetObject", "s3:ListAllMyBuckets", "s3:ListBucket"]
         "Effect" : "Allow"
         "Resource" : ["arn:aws:s3:::${aws_s3_bucket.s3b.bucket}",
         "arn:aws:s3:::${aws_s3_bucket.s3b.bucket}/*"]
@@ -343,76 +294,6 @@ resource "aws_iam_instance_profile" "iam_profile" {
   role = aws_iam_role.ec2-role.name
 }
 
-#s3 bucket
-# resource "aws_s3_bucket" "s3_bucket" {
-#   lifecycle_rule {
-#     id      = "StorageTransitionRule"
-#     enabled = true
-#     transition {
-#       days          = 30
-#       storage_class = "STANDARD_IA"
-#     }
-#   }
-#   server_side_encryption_configuration {
-#     rule {
-#       apply_server_side_encryption_by_default {
-#         sse_algorithm = "AES256"
-#       }
-#     }
-#   }
-
-#   tags = {
-#     "Name" = "s3_bucket-${timestamp()}"
-#   }
-# }
-
-#iam role for ec2
-# resource "aws_iam_role" "ec2_role" {
-#   description        = "Policy for EC2 instance"
-#   name               = "tf-ec2-role"
-#   assume_role_policy = <<EOF
-# {
-#   "Version": "2012-10-17", 
-#   "Statement": [
-#     {
-#       "Action": "sts:AssumeRole", 
-#       "Effect": "Allow", 
-#       "Principal": {
-#         "Service": "ec2.amazonaws.com"
-#       }
-#     }
-#   ]
-# }
-# EOF
-#   tags = {
-#     "Name" = "ec2-iam-role"
-#   }
-# }
-
-# #policy document
-# data "aws_iam_policy_document" "policy_document" {
-#   version = "2012-10-17"
-#   statement {
-#     actions = [
-#       "s3:PutObject",
-#       "s3:GetObject",
-#       "s3:DeleteObject",
-#       "s3:ListBucket"
-#     ]
-#     resources = ["arn:aws:s3:::${aws_s3_bucket.s3_bucket.arn}",
-#     "arn:aws:s3:::${aws_s3_bucket.s3_bucket.arn}/*"]
-#   }
-#   depends_on = [aws_s3_bucket.s3_bucket]
-# }
-
-# #iam policy for role
-# resource "aws_iam_role_policy" "s3_policy" {
-#   name       = "tf-s3-policy"
-#   role       = aws_iam_role.ec2_role.id
-#   policy     = data.aws_iam_policy_document.policy_document.json
-#   depends_on = [aws_s3_bucket.s3_bucket]
-# }
-
 resource "aws_db_subnet_group" "db_subnet_group" {
   description = "Private Subnet group for RDS"
   subnet_ids  = ([local.private_subnet_ids[0], local.private_subnet_ids[1], local.private_subnet_ids[2]])
@@ -443,11 +324,10 @@ resource "aws_db_instance" "rds_instance" {
   engine                 = var.db_engine
   engine_version         = var.db_engine_version
   //multi_az               = false
-  name                = var.db_name
-  username            = var.db_username
-  password            = var.db_password
-  publicly_accessible = var.db_public_access
-  # publicly_accessible  = true
+  name                 = var.db_name
+  username             = var.db_username
+  password             = var.db_password
+  publicly_accessible  = var.db_public_access
   multi_az             = var.db_multiaz
   parameter_group_name = aws_db_parameter_group.rds_parameter_group.name
   skip_final_snapshot  = true
@@ -456,8 +336,20 @@ resource "aws_db_instance" "rds_instance" {
   }
 }
 
+# Look up the Route53 zone ID for the specified domain name
+data "aws_route53_zone" "hosted_zone" {
+  name         = var.domain_name
+  private_zone = false
+}
 
-# #iam instance profile for ec2
-# resource "aws_iam_instance_profile" "ec2_profile" {
-#   role = aws_iam_role.ec2_role.name
-# }
+# Create Route53 record
+resource "aws_route53_record" "hosted_zone_record" {
+  zone_id = data.aws_route53_zone.hosted_zone.zone_id
+  name    = "${var.domain_name}"
+  type    = "A"
+  ttl     = "60"
+  records = [aws_instance.webapp_instance.public_ip]
+}
+output "zone_id" {
+  value = data.aws_route53_zone.hosted_zone.zone_id
+}
