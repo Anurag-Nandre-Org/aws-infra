@@ -4,7 +4,7 @@ aws_profile       = "dev"
 aws_region        = "us-east-1"
 aws_subnet_count  = 3
 my_ip             = "155.33.132.68/32"
-my_ami            = "ami-0f0ff6cd54bee2949"
+my_ami            = "ami-02a533e600dbb7a6c"
 db_storage_size   = 20
 db_instance_class = "db.t3.micro"
 db_engine         = "mysql"
@@ -14,5 +14,7 @@ db_username       = "csye6225"
 db_password       = "csye*6225"
 db_public_access  = false
 db_multiaz        = false
+domain_name       = "dev.anuragnandre.me"
+
 
 
