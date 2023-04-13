@@ -15,6 +15,5 @@ db_password       = "csye*6225"
 db_public_access  = false
 db_multiaz        = false
 domain_name       = "dev.anuragnandre.me"
-
-
+aws_account_id    = "235358574228"
 
