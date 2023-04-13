@@ -75,3 +75,7 @@ variable "domain_name" {
   description = "Hosted Zone"
   type        = string
 }
+variable "aws_account_id" {
+  description = "Aws Accound ID"
+  type        = string
+}
